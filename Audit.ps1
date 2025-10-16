@@ -299,7 +299,6 @@ $noisyPaths = @(
     
     "C:\Program Files\GE\iFIX\Logs",
     "C:\Program Files\GE\Proficy Historian\logs"
-    
 )
 
 # Add noisy paths from all user profiles
@@ -530,7 +529,7 @@ $excludePaths = @(
     "C:\Program Files\Inductive Automation\Ignition\data\temp",
     "C:\Program Files\Inductive Automation\Ignition\cache",
     "C:\Program Files\Inductive Automation\Ignition\logs"
-    )
+)
 
 Write-Host ""
 Write-Host "Excluding noise sources..." -ForegroundColor Yellow

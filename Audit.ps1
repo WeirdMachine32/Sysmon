@@ -265,6 +265,7 @@ function Remove-AuditRule {
 }
 
 $noisyPaths = @(
+    # Windows System Directories
     "$env:SystemRoot\System32\config",
     "$env:SystemRoot\System32\winevt",
     "$env:SystemRoot\System32\LogFiles",
@@ -275,7 +276,30 @@ $noisyPaths = @(
     "$env:SystemRoot\servicing",
     "$env:SystemRoot\System32\sru",
     "$env:ProgramData\Microsoft\Windows\WER",
-    "$env:ProgramData\Microsoft\Diagnosis"
+    "$env:ProgramData\Microsoft\Diagnosis",
+    
+    # ICS Platform Runtime/Cache Directories (not configuration)
+    "C:\Program Files\Inductive Automation\Ignition\data\modules",
+    "C:\Program Files\Inductive Automation\Ignition\data\temp",
+    "C:\Program Files\Inductive Automation\Ignition\cache",
+    "C:\Program Files\Inductive Automation\Ignition\logs",
+    "C:\Program Files\Inductive Automation\Ignition\lib\runtime",
+    
+    "C:\Program Files\Rockwell Software\RSCommon",
+    "C:\Program Files\Rockwell Software\FactoryTalk View\logs",
+    "C:\Program Files (x86)\Rockwell Software\RSCommon",
+    
+    "C:\Program Files\Siemens\Automation\Portal V*\Data\Cache",
+    "C:\Program Files\Siemens\Automation\WinCCUnified\cache",
+    "C:\Program Files (x86)\Siemens\Automation\Portal V*\Data\Cache",
+    
+    "C:\Program Files\Wonderware\InTouch\AlarmDBLogger",
+    
+    "C:\Program Files\AVEVA\System Platform\Logs",
+    
+    "C:\Program Files\GE\iFIX\Logs",
+    "C:\Program Files\GE\Proficy Historian\logs",
+    
 )
 
 # Add noisy paths from all user profiles
@@ -284,7 +308,8 @@ foreach ($userProfile in $userProfiles) {
         "$userProfile\AppData\Local\Microsoft\Windows\Explorer",
         "$userProfile\AppData\Local\Microsoft\Windows\WebCache",
         "$userProfile\AppData\Local\Microsoft\Windows\INetCache",
-        "$userProfile\AppData\Local\Temp"
+        "$userProfile\AppData\Local\Temp",
+        "$userProfile\AppData\Local\Packages"
     )
 }
 
@@ -495,10 +520,16 @@ foreach ($path in $targetPaths) {
     }
 }
 
-# Explicitly exclude Microsoft folders under ProgramData and Velociraptor directory
+# Explicitly exclude Microsoft folders under ProgramData, Velociraptor, and ICS runtime directories
 $excludePaths = @(
     "$env:ProgramData\Microsoft",
-    "C:\Program Files\Velociraptor"
+    "C:\Program Files\Velociraptor",
+    
+    # Additional ICS runtime exclusions (wildcards handled by recursive exclusion)
+    "C:\Program Files\Inductive Automation\Ignition\data\modules",
+    "C:\Program Files\Inductive Automation\Ignition\data\temp",
+    "C:\Program Files\Inductive Automation\Ignition\cache",
+    "C:\Program Files\Inductive Automation\Ignition\logs",
 )
 
 Write-Host ""
@@ -545,6 +576,6 @@ Write-Host ""
 Write-Host "⚠ Focused on Event 4663 to reduce noise while capturing all actual file operations" -ForegroundColor Yellow
 Write-Host "⚠ Focused on file read/write rights (ReadData, WriteData, AppendData, Delete)" -ForegroundColor Yellow
 Write-Host "⚠ Used InheritOnly propagation to avoid auditing target folders themselves" -ForegroundColor Yellow
+Write-Host "⚠ Excluded ICS runtime directories (modules, cache, logs, backups)" -ForegroundColor Yellow
+Write-Host "⚠ Monitoring script filters java.exe CSS theme reads from Ignition" -ForegroundColor Yellow
 Write-Host "⚠ Consider filtering by specific directories or file types in high-volume environments" -ForegroundColor Yellow
-Write-Host "⚠ Excluded events from velociraptor.exe process in monitoring" -ForegroundColor Yellow
-Write-Host "⚠ Filtered to only show File objects (excludes Directory events)" -ForegroundColor Yellow

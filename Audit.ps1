@@ -298,7 +298,7 @@ $noisyPaths = @(
     "C:\Program Files\AVEVA\System Platform\Logs",
     
     "C:\Program Files\GE\iFIX\Logs",
-    "C:\Program Files\GE\Proficy Historian\logs",
+    "C:\Program Files\GE\Proficy Historian\logs"
     
 )
 

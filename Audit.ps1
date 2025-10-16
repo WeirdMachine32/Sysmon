@@ -4,7 +4,7 @@
     Enables file system auditing for ICS and dangerous file types across the entire OS
 .DESCRIPTION
     Configures SACL (System Access Control List) auditing on all drives to monitor
-    creation, modification, and deletion of critical file types
+    creation, modification, and deletion of critical file types for ALL user profiles
 .NOTES
     Requires Administrator privileges
     Creates audit entries in Security Event Log (Event IDs 4663, 4656, 4660)
@@ -12,21 +12,79 @@
 
 # Define file extensions to monitor
 $ICSExtensions = @(
-    # ICS/SCADA Configuration Files
-    '*.rslogix', '*.acd', '*.rss',  # Rockwell/Allen-Bradley
-    '*.s7p', '*.awl', '*.gsd',       # Siemens Step 7
-    '*.xsy', '*.fbd',                # Schneider Electric
-    '*.mer', '*.dvt',                # GE/Emerson
-    '*.apj', '*.cxp',                # Omron
-    '*.prg', '*.stu',                # Mitsubishi
-    '*.project', '*.solution',       # Various SCADA
-    '*.hmi', '*.pd*',                # HMI files
-    '*.dbf', '*.dat',                # Database/Data files
-    '*.cfg', '*.conf', '*.config',   # Configuration files
+    # Rockwell Automation / Allen-Bradley
+    '*.rslogix', '*.acd', '*.rss', '*.acs', '*.l5k', '*.l5x', '*.prj',
+    '*.mer', '*.apa', '*.cdx', '*.rsp', '*.xml',
+    
+    # Siemens (Step 7, TIA Portal, WinCC)
+    '*.s7p', '*.awl', '*.gsd', '*.zap13', '*.zap14', '*.zap15', '*.zap16',
+    '*.ap13', '*.ap14', '*.ap15', '*.ap16', '*.sdb', '*.db', '*.udb',
+    '*.mwp', '*.xdb', '*.plc', '*.wld', '*.s7', '*.ob', '*.fc', '*.fb',
+    '*.pdm', '*.pcs7', '*.mcp', '*.hwd',
+    
+    # Schneider Electric (Unity Pro, EcoStruxure, Vijeo)
+    '*.xsy', '*.fbd', '*.stu', '*.scy', '*.xef', '*.zef', '*.vdz',
+    '*.vxd', '*.vxdz', '*.hjx', '*.clx', '*.ief', '*.prm',
+    
+    # GE / Emerson / Fanuc
+    '*.mer', '*.dvt', '*.cim', '*.med', '*.gef', '*.vsd', '*.mdb',
+    '*.pac', '*.bak', '*.ld', '*.tpe', '*.ls', '*.tp',
+    
+    # Omron
+    '*.apj', '*.cxp', '*.cxt', '*.cxone', '*.ws2', '*.smc', '*.opt',
+    
+    # Mitsubishi
+    '*.prg', '*.gx3', '*.gxw', '*.qpa', '*.qpd', '*.gx2', '*.qj3',
+    
+    # ABB (Control Builder, 800xA)
+    '*.pkw', '*.prj', '*.apg', '*.cpf', '*.cmp', '*.800xa',
+    
+    # Honeywell (Experion, PlantCruise)
+    '*.exp', '*.hsc', '*.scf', '*.pks', '*.rw3',
+    
+    # Yokogawa (Centum, ProSafe)
+    '*.ycp', '*.prj', '*.bkp', '*.cvp',
+    
+    # Wonderware / AVEVA (InTouch, System Platform)
+    '*.intouch', '*.aaw', '*.ww', '*.cab', '*.galaxy', '*.gal',
+    '*.pak', '*.aapkg',
+    
+    # Iconics (Genesis, SCADA)
+    '*.gx', '*.gwx', '*.gwxp',
+    
+    # Ignition (Inductive Automation)
+    '*.proj', '*.modl',
+    
+    # Citect / AVEVA
+    '*.ctz', '*.dbf', '*.ctd', '*.cte',
+    
+    # FactoryTalk / RSView
+    '*.apa', '*.apa32', '*.fth', '*.eme', '*.tag',
+    
+    # Generic SCADA/HMI/PLC Files
+    '*.hmi', '*.scada', '*.pd*', '*.pdb', '*.project', '*.solution',
+    '*.ladder', '*.sfc', '*.st', '*.il', '*.iec',
+    
+    # Configuration and Data Files
+    '*.cfg', '*.conf', '*.config', '*.ini', '*.json', '*.xml',
+    '*.dbf', '*.dat', '*.db', '*.sqlite', '*.mdb', '*.accdb',
+    '*.csv', '*.log', '*.txt', '*.alarm', '*.event', '*.hist',
+    
+    # Backup and Archive Files (ICS-specific)
+    '*.bak', '*.backup', '*.old', '*.arc', '*.archive',
+    
+    # Firmware and Update Files
+    '*.bin', '*.hex', '*.fw', '*.upd', '*.rom', '*.flash',
+    
+    # Modbus, OPC, and Protocol Files
+    '*.eds', '*.dcf', '*.xdd', '*.opc', '*.opcxml', '*.da',
+    
+    # Industrial Network Files
+    '*.icd', '*.scd', '*.cid', '*.ied', '*.iid', '*.sed',
     
     # Executable and Script Files
     '*.exe', '*.dll', '*.sys',
-    '*.bat', '*.cmd', '*.ps1', '*.vbs', '*.js',
+    '*.bat', '*.cmd', '*.ps1', '*.vbs', '*.js', '*.wsh',
     '*.msi', '*.scr', '*.com', '*.pif',
     
     # Dangerous Document Types
@@ -62,7 +120,7 @@ Write-Host "Monitoring $($AllExtensions.Count) file type patterns" -ForegroundCo
 Write-Host ""
 
 # Reset and configure audit policy
-Write-Host "[1/5] Resetting Audit Policy..." -ForegroundColor Green
+Write-Host "[1/6] Resetting Audit Policy..." -ForegroundColor Green
 try {
     # Disable Handle Manipulation to prevent 4656/4658/4690 events
     auditpol /set /subcategory:"Handle Manipulation" /success:disable /failure:disable
@@ -150,7 +208,7 @@ function Set-AuditRule {
 }
 
 # Get all fixed drives
-Write-Host "[2/5] Detecting drives..." -ForegroundColor Green
+Write-Host "[2/6] Detecting drives..." -ForegroundColor Green
 $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { 
     $_.Root -match '^[A-Z]:\\$' -and (Test-Path $_.Root)
 }
@@ -158,8 +216,36 @@ $drives = Get-PSDrive -PSProvider FileSystem | Where-Object {
 Write-Host "  Found drives: $($drives.Root -join ', ')" -ForegroundColor Cyan
 Write-Host ""
 
-# Apply audit rules to each drive root
-Write-Host "[3/5] Removing audit rules from noisy system locations..." -ForegroundColor Green
+# Enumerate all user profiles
+Write-Host "[3/6] Enumerating user profiles..." -ForegroundColor Green
+$userProfiles = @()
+
+# Get all user profile directories
+$profilesPath = "C:\Users"
+if (Test-Path $profilesPath) {
+    $allProfiles = Get-ChildItem $profilesPath -Directory -Force -ErrorAction SilentlyContinue
+    
+    foreach ($profile in $allProfiles) {
+        # Skip system profiles
+        $skipProfiles = @('Public', 'Default', 'Default User', 'All Users')
+        if ($profile.Name -in $skipProfiles) {
+            continue
+        }
+        
+        # Check if it's a valid user profile (has Documents, Desktop, etc.)
+        $documentsPath = Join-Path $profile.FullName "Documents"
+        if (Test-Path $documentsPath) {
+            $userProfiles += $profile.FullName
+            Write-Host "  ✓ Found user profile: $($profile.Name)" -ForegroundColor Cyan
+        }
+    }
+}
+
+Write-Host "  Total user profiles found: $($userProfiles.Count)" -ForegroundColor Green
+Write-Host ""
+
+# Remove audit from noisy Windows system folders
+Write-Host "[4/6] Removing audit rules from noisy system locations..." -ForegroundColor Green
 
 # Function to remove audit rules (reduce noise)
 function Remove-AuditRule {
@@ -178,7 +264,6 @@ function Remove-AuditRule {
     }
 }
 
-# Remove audit from noisy Windows system folders
 $noisyPaths = @(
     "$env:SystemRoot\System32\config",
     "$env:SystemRoot\System32\winevt",
@@ -190,9 +275,18 @@ $noisyPaths = @(
     "$env:SystemRoot\servicing",
     "$env:SystemRoot\System32\sru",
     "$env:ProgramData\Microsoft\Windows\WER",
-    "$env:ProgramData\Microsoft\Diagnosis",
-    "$env:LOCALAPPDATA\Microsoft\Windows\Explorer"
+    "$env:ProgramData\Microsoft\Diagnosis"
 )
+
+# Add noisy paths from all user profiles
+foreach ($userProfile in $userProfiles) {
+    $noisyPaths += @(
+        "$userProfile\AppData\Local\Microsoft\Windows\Explorer",
+        "$userProfile\AppData\Local\Microsoft\Windows\WebCache",
+        "$userProfile\AppData\Local\Microsoft\Windows\INetCache",
+        "$userProfile\AppData\Local\Temp"
+    )
+}
 
 foreach ($path in $noisyPaths) {
     if ($path -and (Test-Path $path)) {
@@ -201,15 +295,12 @@ foreach ($path in $noisyPaths) {
 }
 
 Write-Host ""
-Write-Host "[4/5] Applying targeted audit rules..." -ForegroundColor Green
+Write-Host "[5/6] Applying targeted audit rules..." -ForegroundColor Green
 $successCount = 0
 
-# Instead of auditing drive roots, audit specific high-value targets
+# Build target paths for ALL users
 $targetPaths = @(
-    # User locations (high risk for malware/data exfil)
-    "$env:USERPROFILE\Documents",
-    "$env:USERPROFILE\Downloads",
-    "$env:USERPROFILE\Desktop",
+    # Public folders
     "$env:PUBLIC\Documents",
     "$env:PUBLIC\Desktop",
     
@@ -221,29 +312,185 @@ $targetPaths = @(
     "$env:ProgramData"
 )
 
+# Add user-specific paths for ALL discovered profiles
+foreach ($userProfile in $userProfiles) {
+    $targetPaths += @(
+        "$userProfile\Documents",
+        "$userProfile\Downloads",
+        "$userProfile\Desktop",
+        "$userProfile\OneDrive",
+        "$userProfile\Favorites"
+    )
+}
+
 # Add ICS-specific paths if they exist
 $icsPaths = @(
+    # Rockwell Automation
     "C:\Program Files\Rockwell Software",
     "C:\Program Files (x86)\Rockwell Software",
+    "C:\Program Files\Common Files\Rockwell",
+    "C:\Program Files (x86)\Common Files\Rockwell",
+    "C:\RSLogix 5000",
+    "C:\RSLogix 500",
+    "C:\FactoryTalk",
+    
+    # Siemens
     "C:\Program Files\Siemens",
     "C:\Program Files (x86)\Siemens",
+    "C:\Program Files\Common Files\Siemens",
+    "C:\Siemens",
+    "C:\S7",
+    "C:\TIA Portal",
+    "C:\STEP 7",
+    "C:\WinCC",
+    
+    # Schneider Electric
     "C:\Program Files\Schneider Electric",
     "C:\Program Files (x86)\Schneider Electric",
+    "C:\Schneider Electric",
+    "C:\Unity Pro",
+    "C:\Vijeo Designer",
+    "C:\EcoStruxure",
+    "C:\SoMachine",
+    
+    # GE Digital / Emerson
     "C:\Program Files\GE",
     "C:\Program Files (x86)\GE",
+    "C:\GE",
+    "C:\Proficy",
+    "C:\iHistorian",
+    "C:\CIMPLICITY",
+    "C:\Emerson",
+    "C:\DeltaV",
+    
+    # Omron
+    "C:\Program Files\OMRON",
+    "C:\Program Files (x86)\OMRON",
+    "C:\OMRON",
+    "C:\CX-One",
+    "C:\CX-Programmer",
+    
+    # Mitsubishi
+    "C:\Program Files\Mitsubishi",
+    "C:\Program Files (x86)\Mitsubishi",
+    "C:\MELSEC",
+    "C:\GX Works",
+    "C:\GX Developer",
+    
+    # ABB
+    "C:\Program Files\ABB",
+    "C:\Program Files (x86)\ABB",
+    "C:\ABB",
+    "C:\Control Builder",
+    "C:\800xA",
+    
+    # Honeywell
+    "C:\Program Files\Honeywell",
+    "C:\Program Files (x86)\Honeywell",
+    "C:\Honeywell",
+    "C:\Experion",
+    "C:\PlantCruise",
+    
+    # Yokogawa
+    "C:\Program Files\Yokogawa",
+    "C:\Program Files (x86)\Yokogawa",
+    "C:\Yokogawa",
+    "C:\Centum",
+    "C:\FAST TOOLS",
+    
+    # Wonderware / AVEVA
+    "C:\Program Files\Wonderware",
+    "C:\Program Files (x86)\Wonderware",
+    "C:\Program Files\AVEVA",
+    "C:\Program Files (x86)\AVEVA",
+    "C:\Wonderware",
+    "C:\AVEVA",
+    "C:\InTouch",
+    "C:\System Platform",
+    "C:\ArchestrA",
+    
+    # Iconics
+    "C:\Program Files\ICONICS",
+    "C:\Program Files (x86)\ICONICS",
+    "C:\ICONICS",
+    "C:\GENESIS64",
+    
+    # Ignition (Inductive Automation)
+    "C:\Program Files\Inductive Automation",
+    "C:\Program Files (x86)\Inductive Automation",
+    "C:\Ignition",
+    
+    # Citect
+    "C:\Program Files\Citect",
+    "C:\Program Files (x86)\Citect",
+    "C:\Citect",
+    
+    # Phoenix Contact
+    "C:\Program Files\Phoenix Contact",
+    "C:\Program Files (x86)\Phoenix Contact",
+    "C:\PC WORX",
+    
+    # Beckhoff
+    "C:\TwinCAT",
+    "C:\Program Files\Beckhoff",
+    "C:\Program Files (x86)\Beckhoff",
+    
+    # CODESYS
+    "C:\Program Files\CODESYS",
+    "C:\Program Files (x86)\CODESYS",
+    "C:\CODESYS",
+    
+    # B&R Automation
+    "C:\BRAutomation",
+    "C:\Program Files\BR Automation",
+    "C:\Program Files (x86)\BR Automation",
+    "C:\Automation Studio",
+    
+    # Kepware / PTC
+    "C:\Program Files\Kepware",
+    "C:\Program Files (x86)\Kepware",
+    "C:\KEPServerEX",
+    "C:\ThingWorx",
+    
+    # National Instruments
+    "C:\Program Files\National Instruments",
+    "C:\Program Files (x86)\National Instruments",
+    "C:\LabVIEW Data",
+    
+    # Generic SCADA/HMI/PLC Directories
     "C:\SCADA",
     "C:\HMI",
-    "C:\PLC"
+    "C:\PLC",
+    "C:\DCS",
+    "C:\OPC",
+    "C:\Historian",
+    "C:\Projects",
+    "C:\ICS Projects",
+    "C:\Automation",
+    "C:\Control",
+    "C:\Industrial",
+    
+    # Data and Backup Directories
+    "C:\Data",
+    "C:\Backups",
+    "C:\Archives",
+    "C:\Logs"
 )
 
 $targetPaths += $icsPaths
+
+# Remove duplicates
+$targetPaths = $targetPaths | Select-Object -Unique
+
+Write-Host "  Processing $($targetPaths.Count) target locations..." -ForegroundColor Cyan
+Write-Host ""
 
 foreach ($path in $targetPaths) {
     if ($path -and (Test-Path $path)) {
         Write-Host "  Processing: $path" -ForegroundColor Cyan
         if (Set-AuditRule -Path $path -Extensions $AllExtensions) {
             $successCount++
-            Write-Host "  ✓ Audit configured on $path" -ForegroundColor Green
+            Write-Host "  ✓ Audit configured" -ForegroundColor Green
         }
     }
 }
@@ -254,15 +501,17 @@ $excludePaths = @(
     "C:\Program Files\Velociraptor"
 )
 
+Write-Host ""
+Write-Host "Excluding noise sources..." -ForegroundColor Yellow
 foreach ($path in $excludePaths) {
     if ($path -and (Test-Path $path)) {
         Remove-AuditRule -Path $path
     }
 }
 
-# Apply audit rules to critical system directories
+# Verify Audit Policy
 Write-Host ""
-Write-Host "[5/5] Verifying Audit Policy..." -ForegroundColor Green
+Write-Host "[6/6] Verifying Audit Policy..." -ForegroundColor Green
 Write-Host ""
 auditpol /get /category:"Object Access"
 Write-Host ""
@@ -271,9 +520,15 @@ Write-Host ""
 Write-Host ""
 Write-Host "=== Configuration Complete ===" -ForegroundColor Cyan
 Write-Host "✓ Configured auditing on $successCount target location(s)" -ForegroundColor Green
+Write-Host "✓ Monitoring $($userProfiles.Count) user profile(s)" -ForegroundColor Green
 Write-Host "✓ Excluded noisy Windows system folders" -ForegroundColor Green
 Write-Host "✓ Excluded Velociraptor directory from auditing" -ForegroundColor Green
 Write-Host "✓ Monitoring $($AllExtensions.Count) file type patterns" -ForegroundColor Green
+Write-Host ""
+Write-Host "User profiles monitored:" -ForegroundColor Yellow
+foreach ($profile in $userProfiles) {
+    Write-Host "  - $(Split-Path $profile -Leaf)" -ForegroundColor White
+}
 Write-Host ""
 Write-Host "Audit Events Information:" -ForegroundColor Yellow
 Write-Host "  - Event Log: Security" -ForegroundColor White
@@ -284,77 +539,6 @@ Write-Host "To view audit events, run:" -ForegroundColor Yellow
 Write-Host "  Get-WinEvent -FilterHashtable @{LogName='Security';ID=4663} -MaxEvents 50" -ForegroundColor Cyan
 Write-Host ""
 
-# Optional: Create a monitoring script
-$monitorScript = @'
-# Quick Audit Monitor Script - Focused on Event 4663
-# Monitors actual file access/modification events only
-
-param(
-    [int]$Hours = 1,
-    [switch]$ShowDetails
-)
-
-$events = Get-WinEvent -FilterHashtable @{
-    LogName='Security'
-    ID=4663
-    StartTime=(Get-Date).AddHours(-$Hours)
-} -ErrorAction SilentlyContinue
-
-# Filter out events from excluded processes (e.g., Velociraptor)
-# and filter to only include File objects (exclude Directory)
-$events = $events | Where-Object {
-    $xml = [xml]$_.ToXml()
-    $eventData = $xml.Event.EventData.Data
-    $procName = ($eventData | Where-Object {$_.Name -eq 'ProcessName'}).'#text'
-    $objType = ($eventData | Where-Object {$_.Name -eq 'ObjectType'}).'#text'
-    ($procName -notlike "*velociraptor.exe") -and ($objType -eq "File")
-}
-
-if ($events.Count -eq 0) {
-    Write-Host "No file access events found in the last $Hours hour(s)" -ForegroundColor Yellow
-    exit
-}
-
-Write-Host "`n=== File Access Events (Last $Hours Hour(s)) ===" -ForegroundColor Cyan
-Write-Host "Total Events: $($events.Count)" -ForegroundColor Green
-Write-Host ""
-
-$groupedEvents = $events | ForEach-Object {
-    $xml = [xml]$_.ToXml()
-    $eventData = $xml.Event.EventData.Data
-    
-    [PSCustomObject]@{
-        TimeCreated = $_.TimeCreated
-        ObjectName = ($eventData | Where-Object {$_.Name -eq 'ObjectName'}).'#text'
-        ProcessName = ($eventData | Where-Object {$_.Name -eq 'ProcessName'}).'#text'
-        AccessMask = ($eventData | Where-Object {$_.Name -eq 'AccessMask'}).'#text'
-        SubjectUserName = ($eventData | Where-Object {$_.Name -eq 'SubjectUserName'}).'#text'
-    }
-}
-
-# Group by file and show summary
-$summary = $groupedEvents | Group-Object ObjectName | Sort-Object Count -Descending
-
-Write-Host "Top Modified Files:" -ForegroundColor Yellow
-$summary | Select-Object -First 20 | ForEach-Object {
-    $color = if($_.Count -gt 10){'Red'}elseif($_.Count -gt 5){'Yellow'}else{'White'}
-    Write-Host "  [$($_.Count) times] $($_.Name)" -ForegroundColor $color
-}
-
-if ($ShowDetails) {
-    Write-Host "`n=== Detailed Events ===" -ForegroundColor Cyan
-    $groupedEvents | Sort-Object TimeCreated -Descending | Select-Object -First 50 | ForEach-Object {
-        Write-Host "`n$($_.TimeCreated)" -ForegroundColor Green
-        Write-Host "  File: $($_.ObjectName)" -ForegroundColor White
-        Write-Host "  Process: $($_.ProcessName)" -ForegroundColor Cyan
-        Write-Host "  User: $($_.SubjectUserName)" -ForegroundColor Gray
-    }
-}
-
-Write-Host "`nUse -ShowDetails switch for full event details" -ForegroundColor Yellow
-'@
-
-$monitorScript | Out-File -FilePath "$PSScriptRoot\Monitor-FileAudits.ps1" -Force
 Write-Host "Created monitoring script: Monitor-FileAudits.ps1" -ForegroundColor Green
 Write-Host "  Usage: .\Monitor-FileAudits.ps1 -Hours 24 -ShowDetails" -ForegroundColor Cyan
 Write-Host ""

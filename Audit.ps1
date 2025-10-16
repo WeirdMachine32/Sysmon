@@ -279,8 +279,7 @@ $noisyPaths = @(
     "$env:ProgramData\Microsoft\Diagnosis",
     
     # ICS Platform Runtime/Cache Directories (not configuration)
-    "C:\Program Files\Inductive Automation\Ignition\data\modules",
-    "C:\Program Files\Inductive Automation\Ignition\data\temp",
+    "C:\Program Files\Inductive Automation\Ignition\data",
     "C:\Program Files\Inductive Automation\Ignition\cache",
     "C:\Program Files\Inductive Automation\Ignition\logs",
     "C:\Program Files\Inductive Automation\Ignition\lib\runtime",

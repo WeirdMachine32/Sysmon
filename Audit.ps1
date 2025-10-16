@@ -529,8 +529,8 @@ $excludePaths = @(
     "C:\Program Files\Inductive Automation\Ignition\data\modules",
     "C:\Program Files\Inductive Automation\Ignition\data\temp",
     "C:\Program Files\Inductive Automation\Ignition\cache",
-    "C:\Program Files\Inductive Automation\Ignition\logs",
-)
+    "C:\Program Files\Inductive Automation\Ignition\logs"
+    )
 
 Write-Host ""
 Write-Host "Excluding noise sources..." -ForegroundColor Yellow

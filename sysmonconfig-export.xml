@@ -62,7 +62,7 @@
 
 <Sysmon schemaversion="4.90">
 	<!--SYSMON META CONFIG-->
-	<HashAlgorithms>md5,sha256,IMPHASH</HashAlgorithms> <!-- Both MD5 and SHA256 are the industry-standard algorithms. Remove IMPHASH if you do not use DLL import fingerprinting. -->
+	<HashAlgorithms>sha256,IMPHASH</HashAlgorithms> <!-- Both MD5 and SHA256 are the industry-standard algorithms. Remove IMPHASH if you do not use DLL import fingerprinting. -->
 	<DnsLookup>True</DnsLookup> <!-- ENABLED for DNS query logging (Event ID 22) -->
 	<CheckRevocation/> <!-- Check loaded drivers, log if their code-signing certificate has been revoked, in case malware stole one to sign a kernel driver -->
 
@@ -73,6 +73,57 @@
 
 
 	<EventFiltering>
+	
+	<!--GLOBAL EXCLUSIONS: Apply to all event types-->
+	<RuleGroup name="GlobalExclude-Sysmon" groupRelation="or">
+		<ProcessCreate onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</ProcessCreate>
+		<FileCreateTime onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</FileCreateTime>
+		<NetworkConnect onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</NetworkConnect>
+		<ProcessTerminate onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</ProcessTerminate>
+		<DriverLoad onmatch="exclude">
+			<ImageLoaded condition="image">SysmonDrv.sys</ImageLoaded>
+		</DriverLoad>
+		<ImageLoad onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</ImageLoad>
+		<FileCreate onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</FileCreate>
+		<RegistryEvent onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</RegistryEvent>
+		<FileCreateStreamHash onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</FileCreateStreamHash>
+		<PipeEvent onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</PipeEvent>
+		<ProcessAccess onmatch="exclude">
+			<SourceImage condition="image">Sysmon.exe</SourceImage>
+			<SourceImage condition="image">Sysmon64.exe</SourceImage>
+		</ProcessAccess>
+		<RawAccessRead onmatch="exclude">
+			<Image condition="image">Sysmon.exe</Image>
+			<Image condition="image">Sysmon64.exe</Image>
+		</RawAccessRead>
+	</RuleGroup>
 
 	<!--SYSMON EVENT ID 1 : PROCESS CREATION [ProcessCreate]-->
 		<!--COMMENT:	All processes launched will be logged, except for what matches a rule below. It's best to be as specific as possible,
@@ -82,7 +133,7 @@
 			code signatures to validate, but Sysmon does not support that. Look into AppLocker/WindowsDeviceGuard for whitelisting support. -->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessID, Image, FileVersion, Description, Product, Company, CommandLine, CurrentDirectory, User, LogonGuid, LogonId, TerminalSessionId, IntegrityLevel, Hashes, ParentProcessGuid, ParentProcessId, ParentImage, ParentCommandLine, RuleName-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="ProcessCreate-Exclude" groupRelation="or">
 		<ProcessCreate onmatch="exclude">
 		
 		</ProcessCreate>
@@ -92,15 +143,17 @@
 		<!--COMMENT:	[ https://attack.mitre.org/wiki/Technique/T1099 ] -->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, TargetFilename, CreationUtcTime, PreviousCreationUtcTime-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileCreateTime-Include" groupRelation="or">
 		<FileCreateTime onmatch="include">
-			<Image name="T1099" condition="begin with">C:\Users</Image> <!--Look for timestomping in user area, usually nothing should be doing that here-->
 			<TargetFilename name="T1099" condition="end with">.exe</TargetFilename> <!--Look for backdated executables anywhere-->
+			<TargetFilename name="T1099" condition="end with">.dll</TargetFilename> <!--Look for backdated executables anywhere-->
+			<TargetFilename name="T1099" condition="end with">.sys</TargetFilename> <!--Look for backdated executables anywhere-->
+			 
 			<Image name="T1099" condition="begin with">\Device\HarddiskVolumeShadowCopy</Image> <!--Nothing should be written here | Credit: @SBousseaden [ https://twitter.com/SBousseaden/status/1133030955407630336 ] -->
 		</FileCreateTime>
 	</RuleGroup>
 
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileCreateTime-Exclude" groupRelation="or">
 		<FileCreateTime onmatch="exclude">
 			<Image condition="image">OneDrive.exe</Image> <!--OneDrive constantly changes file times-->
 			<Image condition="image">C:\Windows\system32\backgroundTaskHost.exe</Image>
@@ -124,7 +177,7 @@
 		<!-- https://www.first.org/resources/papers/conf2017/APT-Log-Analysis-Tracking-Attack-Tools-by-Audit-Policy-and-Sysmon.pdf -->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, User, Protocol, Initiated, SourceIsIpv6, SourceIp, SourceHostname, SourcePort, SourcePortName, DestinationIsIpV6, DestinationIp, DestinationHostname, DestinationPort, DestinationPortName-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="NetworkConnect-Include" groupRelation="or">
 		<NetworkConnect onmatch="include">
 			<!--Suspicious sources for network-connecting binaries-->
 			<Image name="Usermode" condition="begin with">C:\Users</Image> <!--Tools downloaded by users can use other processes for networking, but this is a very valuable indicator.-->
@@ -209,6 +262,25 @@
 			<DestinationPort name="VNC" condition="is">5800</DestinationPort> <!--VNC protocol: Monitor admin connections, often insecure, using hard-coded admin password-->
 			<DestinationPort name="VNC" condition="is">5900</DestinationPort> <!--VNC protocol Monitor admin connections, often insecure, using hard-coded admin password-->
 			<DestinationPort name="Alert,Metasploit" condition="is">4444</DestinationPort>
+			<!--Ports: ICS/SCADA Protocols-->
+			<DestinationPort name="ICS,Modbus" condition="is">502</DestinationPort> <!--Modbus TCP-->
+			<DestinationPort name="ICS,DNP3" condition="is">20000</DestinationPort> <!--DNP3-->
+			<DestinationPort name="ICS,IEC104" condition="is">2404</DestinationPort> <!--IEC 60870-5-104-->
+			<DestinationPort name="ICS,BACnet" condition="is">47808</DestinationPort> <!--BACnet-->
+			<DestinationPort name="ICS,Profinet" condition="is">34962</DestinationPort> <!--Profinet-->
+			<DestinationPort name="ICS,Profinet" condition="is">34963</DestinationPort> <!--Profinet-->
+			<DestinationPort name="ICS,Profinet" condition="is">34964</DestinationPort> <!--Profinet-->
+			<DestinationPort name="ICS,EtherNetIP" condition="is">2222</DestinationPort> <!--EtherNet/IP-->
+			<DestinationPort name="ICS,EtherNetIP" condition="is">44818</DestinationPort> <!--EtherNet/IP-->
+			<DestinationPort name="ICS,OPCUA" condition="is">4840</DestinationPort> <!--OPC UA-->
+			<DestinationPort name="ICS,S7" condition="is">102</DestinationPort> <!--Siemens S7-->
+			<DestinationPort name="ICS,FINS" condition="is">9600</DestinationPort> <!--Omron FINS-->
+			<DestinationPort name="ICS,PCWorx" condition="is">1962</DestinationPort> <!--Phoenix Contact PCWorx-->
+			<DestinationPort name="ICS,CIP" condition="is">2222</DestinationPort> <!--CIP (Common Industrial Protocol)-->
+			<DestinationPort name="ICS,MMS" condition="is">102</DestinationPort> <!--MMS (Manufacturing Message Specification)-->
+			<DestinationPort name="ICS,IEC61850" condition="is">102</DestinationPort> <!--IEC 61850 MMS-->
+			<DestinationPort name="ICS,CODESYS" condition="is">2455</DestinationPort> <!--CODESYS-->
+			<DestinationPort name="ICS,Mitsubishi" condition="is">5007</DestinationPort> <!--Mitsubishi MELSEC-->
 			<!--Ports: Proxy-->
 			<DestinationPort name="Proxy" condition="is">1080</DestinationPort> <!--Socks proxy port | Credit @ion-storm-->
 			<DestinationPort name="Proxy" condition="is">3128</DestinationPort> <!--Socks proxy port | Credit @ion-storm-->
@@ -220,7 +292,7 @@
 		</NetworkConnect>
 	</RuleGroup>
 
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="NetworkConnect-Exclude" groupRelation="or">
 		<NetworkConnect onmatch="exclude">
 			<!--SECTION: Microsoft-->
 			<Image condition="begin with">C:\ProgramData\Microsoft\Windows Defender\Platform\</Image>
@@ -246,7 +318,7 @@
 		<!--COMMENT:	Useful data in building infection timelines.-->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="ProcessTerminate-Exclude" groupRelation="or">
 		<ProcessTerminate onmatch="exclude">
 			<!--Exclude common system noise-->
 			<Image condition="is">C:\Windows\System32\conhost.exe</Image>
@@ -262,7 +334,7 @@
 		<!--TECHNICAL:	Sysmon will check the signing certificate revocation status of any driver you don't exclude.-->
 
 		<!--DATA: UtcTime, ImageLoaded, Hashes, Signed, Signature, SignatureStatus-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="DriverLoad-Exclude" groupRelation="or">
 		<DriverLoad onmatch="exclude">
 			<Signature condition="contains">microsoft</Signature> <!--Exclude signed Microsoft drivers-->
 			<Signature condition="contains">windows</Signature> <!--Exclude signed Microsoft drivers-->
@@ -277,18 +349,41 @@
 		<!--SECURITY:	Filter by signature, not just signed=true, to catch malicious DLLs injected into legit processes-->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, ImageLoaded, Hashes, Signed, Signature, SignatureStatus-->
-	<RuleGroup name="" groupRelation="or">
+	
+	<!--Include suspicious DLL loads first-->
+	<RuleGroup name="ImageLoad-Include" groupRelation="or">
+		<ImageLoad onmatch="include">
+			<!--Unsigned DLLs-->
+			<Signed condition="is">false</Signed>
+			
+			<!--DLLs from suspicious locations-->
+			<ImageLoaded condition="begin with">C:\Users\</ImageLoaded>
+			<ImageLoaded condition="begin with">C:\ProgramData\</ImageLoaded>
+			<ImageLoaded condition="begin with">C:\Windows\Temp\</ImageLoaded>
+			<ImageLoaded condition="contains">\AppData\</ImageLoaded>
+			<ImageLoaded condition="contains">\Temp\</ImageLoaded>
+			<ImageLoaded condition="begin with">C:\Recycle</ImageLoaded>
+			
+		</ImageLoad>
+	</RuleGroup>
+	
+	<RuleGroup name="ImageLoad-Exclude" groupRelation="or">
 		<ImageLoad onmatch="exclude">
-			<!--Exclude DLLs signed by Microsoft - prevents noise while catching unsigned injected DLLs-->
-			<Signature condition="contains">Microsoft Windows</Signature>
+			<!--Exclude legitimate DLLs from user locations that are signed-->
 			<Signature condition="contains">Microsoft Corporation</Signature>
 			<Signature condition="is">Microsoft Windows</Signature>
+			
+			<!--Exclude DLLs from System32 and SysWOW64 - signed Microsoft system DLLs-->
+			<ImageLoaded condition="begin with">C:\Windows\System32\</ImageLoaded>
+			<ImageLoaded condition="begin with">C:\Windows\SysWOW64\</ImageLoaded>
 			
 			<!--Exclude other trusted vendors (add as needed for your environment)-->
 			<Signature condition="contains">Intel Corporation</Signature>
 			<Signature condition="contains">NVIDIA Corporation</Signature>
 			<Signature condition="contains">Google LLC</Signature>
 			<Signature condition="contains">Adobe Inc.</Signature>
+			<Signature condition="contains">Intel Corporation</Signature>
+			<Signature condition="contains">NVIDIA Corporation</Signature>
 			
 			<!--Exclude DLLs from trusted paths ONLY if signed by Microsoft-->
 			<!--This catches unsigned DLLs even from System32-->
@@ -302,7 +397,7 @@
 	<!--WARNING: Can cause performance impact - monitor system load-->
 	<!--USE CASES: Detects Mimikatz, credential dumpers, ransomware, disk wipers-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="RawAccessRead-Exclude" groupRelation="or">
 		<RawAccessRead onmatch="exclude">
 			<!--Exclude legitimate system processes that access raw disk-->
 			<Image condition="is">C:\Windows\System32\svchost.exe</Image>
@@ -332,7 +427,7 @@
 
 		<!--DATA: UtcTime, SourceProcessGuid, SourceProcessId, SourceThreadId, SourceImage, TargetProcessGuid, TargetProcessId, TargetImage, GrantedAccess, CallTrace-->
 	<!--ENHANCEMENT ITERATION 2: Enable LSASS monitoring for credential dumping detection-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="ProcessAccess-Include" groupRelation="and">
 		<ProcessAccess onmatch="include">
 			<!--Monitor LSASS access - primary indicator of credential dumping T1003-->
 			<TargetImage name="T1003_LSASS" condition="image">lsass.exe</TargetImage>
@@ -360,13 +455,44 @@
 		</ProcessAccess>
 	</RuleGroup>
 	
-	<RuleGroup name="" groupRelation="or">
+	<!--ENHANCEMENT: Monitor processes from suspicious locations accessing sensitive processes-->
+	<RuleGroup name="ProcessAccess-SuspiciousSource" groupRelation="or">
+		<ProcessAccess onmatch="include">
+			<!--Detect processes from temporary directories accessing sensitive processes-->
+			<SourceImage name="T1055_TempFolder" condition="begin with">C:\Windows\Temp\</SourceImage>
+			<SourceImage name="T1055_UserTemp" condition="contains">\AppData\Local\Temp\</SourceImage>
+			<SourceImage name="T1055_UserTemp2" condition="contains">\AppData\Roaming\Temp\</SourceImage>
+			
+			<!--Detect processes from user-writable locations-->
+			<SourceImage name="T1055_Downloads" condition="contains">\Downloads\</SourceImage>
+			<SourceImage name="T1055_Documents" condition="contains">\Documents\</SourceImage>
+			<SourceImage name="T1055_Desktop" condition="contains">\Desktop\</SourceImage>
+			<SourceImage name="T1055_Public" condition="begin with">C:\Users\Public\</SourceImage>
+			
+			<!--Detect processes from common staging locations-->
+			<SourceImage name="T1055_ProgramData" condition="begin with">C:\ProgramData\</SourceImage>
+			<SourceImage name="T1055_Recycle" condition="contains">\$Recycle.Bin\</SourceImage>
+			
+			<!--Detect processes from web browser cache/temp (common malware staging)-->
+			<SourceImage name="T1189_BrowserCache" condition="contains">\AppData\Local\Google\Chrome\User Data\</SourceImage>
+			<SourceImage name="T1189_BrowserCache" condition="contains">\AppData\Local\Microsoft\Edge\User Data\</SourceImage>
+			<SourceImage name="T1189_BrowserCache" condition="contains">\AppData\Local\Mozilla\Firefox\</SourceImage>
+			
+		</ProcessAccess>
+	</RuleGroup>
+	
+	<RuleGroup name="ProcessAccess-Exclude" groupRelation="or">
 		<ProcessAccess onmatch="exclude">
 			<!--ITERATION 4: Aggressive noise reduction - exclude legitimate LSASS access-->
+			<SourceImage condition="is">C:\Windows\System32\lsass.exe</SourceImage>
+			<SourceImage condition="is">C:\Program Files\Google\Chrome\Application\chrome.exe</SourceImage>
+			<SourceImage condition="is">C:\Windows\Explorer.EXE</SourceImage>
+			<SourceImage condition="is">C:\Windows\Explorer.EXE</SourceImage>
 			<SourceImage condition="is">C:\Windows\System32\svchost.exe</SourceImage>
 			<SourceImage condition="is">C:\Windows\System32\wbem\WmiPrvSE.exe</SourceImage>
 			<SourceImage condition="is">C:\Windows\System32\taskmgr.exe</SourceImage>
-			<SourceImage condition="is">C:\Program Files\Windows Defender\MsMpEng.exe</SourceImage>
+			<SourceImage condition="contains">C:\Program Files\Windows Defender\MsMpEng.exe</SourceImage>
+			<SourceImage condition="contains">C:\ProgramData\Microsoft\Windows Defender\</SourceImage>
 			<SourceImage condition="is">C:\Program Files\Windows Defender\MpCmdRun.exe</SourceImage>
 			<SourceImage condition="is">C:\Windows\System32\lsm.exe</SourceImage>
 			<SourceImage condition="is">C:\Windows\System32\services.exe</SourceImage>
@@ -387,7 +513,7 @@
 		<!--NOTE:	You may not see files detected by antivirus. Other filesystem minifilters, like antivirus, can act before Sysmon receives the alert a file was written.-->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, TargetFilename, CreationUtcTime-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileCreate-Include" groupRelation="or">
 		<FileCreate onmatch="include">
 			<TargetFilename name="T1023" condition="contains">\Start Menu</TargetFilename> <!--Windows: Startup links and shortcut modification [ https://attack.mitre.org/wiki/Technique/T1023 ] -->
 			<TargetFilename name="T1165" condition="contains">\Startup\</TargetFilename> <!--Microsoft:Changes to user's auto-launched files and shortcuts-->
@@ -424,6 +550,55 @@
 			<TargetFilename condition="end with">proj</TargetFilename><!--Microsoft:MSBuild:Script: [ https://twitter.com/subTee/status/885919612969394177 ] -->
 			<TargetFilename condition="end with">.sln</TargetFilename><!--Microsoft:MSBuild:Script: [ https://twitter.com/subTee/status/885919612969394177 ] -->
 			<TargetFilename condition="end with">.xls</TargetFilename><!--Microsoft [ https://medium.com/@threathuntingteam/msxsl-exe-and-wmic-exe-a-way-to-proxy-code-execution-8d524f642b75 ] -->
+			<!--ICS/SCADA file types-->
+			<TargetFilename name="ICS" condition="end with">.cfg</TargetFilename> <!--ICS config files-->
+			<TargetFilename name="ICS" condition="end with">.ini</TargetFilename> <!--ICS config files-->
+			<TargetFilename name="ICS" condition="end with">.xml</TargetFilename> <!--ICS config files-->
+			<TargetFilename name="ICS" condition="end with">.json</TargetFilename> <!--ICS config files-->
+			<TargetFilename name="ICS" condition="end with">.db</TargetFilename> <!--ICS databases-->
+			<TargetFilename name="ICS" condition="end with">.sqlite</TargetFilename> <!--ICS databases-->
+			<TargetFilename name="ICS" condition="end with">.mdb</TargetFilename> <!--ICS databases-->
+			<TargetFilename name="ICS" condition="end with">.log</TargetFilename> <!--ICS log files-->
+			<TargetFilename name="ICS" condition="end with">.csv</TargetFilename> <!--ICS data files-->
+			<TargetFilename name="ICS" condition="end with">.txt</TargetFilename> <!--ICS data files-->
+			<TargetFilename name="ICS" condition="end with">.plc</TargetFilename> <!--PLC files-->
+			<TargetFilename name="ICS" condition="end with">.l5x</TargetFilename> <!--Rockwell Logix-->
+			<TargetFilename name="ICS" condition="end with">.acd</TargetFilename> <!--Allen-Bradley-->
+			<TargetFilename name="ICS" condition="end with">.rss</TargetFilename> <!--Rockwell RSLogix-->
+			<TargetFilename name="ICS" condition="end with">.scl</TargetFilename> <!--Siemens SCL-->
+			<TargetFilename name="ICS" condition="end with">.awl</TargetFilename> <!--Siemens AWL-->
+			<TargetFilename name="ICS" condition="end with">.st</TargetFilename> <!--Structured Text-->
+			<TargetFilename name="ICS" condition="end with">.il</TargetFilename> <!--Instruction List-->
+			<TargetFilename name="ICS" condition="end with">.prj</TargetFilename> <!--Project files-->
+			<TargetFilename name="ICS" condition="end with">.gxw</TargetFilename> <!--Mitsubishi GX Works-->
+			<TargetFilename name="ICS" condition="end with">.qpg</TargetFilename> <!--Mitsubishi-->
+			<TargetFilename name="ICS" condition="end with">.cxp</TargetFilename> <!--Omron CX-Programmer-->
+			<TargetFilename name="ICS" condition="end with">.ma</TargetFilename> <!--Schneider-->
+			<TargetFilename name="ICS" condition="end with">.fbd</TargetFilename> <!--Function Block Diagram-->
+			<TargetFilename name="ICS" condition="end with">.ld</TargetFilename> <!--Ladder Diagram-->
+			<TargetFilename name="ICS" condition="end with">.sfc</TargetFilename> <!--Sequential Function Chart-->
+			<TargetFilename name="ICS" condition="end with">.scd</TargetFilename> <!--IEC 61850 SCD-->
+			<TargetFilename name="ICS" condition="end with">.icd</TargetFilename> <!--IEC 61850 ICD-->
+			<TargetFilename name="ICS" condition="end with">.cid</TargetFilename> <!--IEC 61850 CID-->
+			<TargetFilename name="ICS" condition="end with">.ssd</TargetFilename> <!--IEC 61850 SSD-->
+			<TargetFilename name="ICS" condition="end with">.bin</TargetFilename> <!--Firmware-->
+			<TargetFilename name="ICS" condition="end with">.hex</TargetFilename> <!--Hex files-->
+			<TargetFilename name="ICS" condition="end with">.s7p</TargetFilename> <!--Siemens Step7 project-->
+			<TargetFilename name="ICS" condition="end with">.s7d</TargetFilename> <!--Siemens Step7 data-->
+			<TargetFilename name="ICS" condition="end with">.pdl</TargetFilename> <!--Siemens WinCC picture-->
+			<TargetFilename name="ICS" condition="end with">.tag</TargetFilename> <!--Siemens WinCC tag-->
+			<TargetFilename name="ICS" condition="end with">.blk</TargetFilename> <!--Siemens blocks-->
+			<TargetFilename name="ICS" condition="end with">.ap13</TargetFilename> <!--Siemens TIA Portal v13-->
+			<TargetFilename name="ICS" condition="end with">.ap14</TargetFilename> <!--Siemens TIA Portal v14-->
+			<TargetFilename name="ICS" condition="end with">.ap15</TargetFilename> <!--Siemens TIA Portal v15-->
+			<TargetFilename name="ICS" condition="end with">.ap16</TargetFilename> <!--Siemens TIA Portal v16-->
+			<TargetFilename name="ICS" condition="end with">.ap17</TargetFilename> <!--Siemens TIA Portal v17-->
+			<TargetFilename name="ICS" condition="end with">.ap18</TargetFilename> <!--Siemens TIA Portal v18-->
+			<TargetFilename name="ICS" condition="end with">.galx</TargetFilename> <!--Wonderware Galaxy-->
+			<TargetFilename name="ICS" condition="end with">.app</TargetFilename> <!--Wonderware Application-->
+			<TargetFilename name="ICS" condition="end with">.acf</TargetFilename> <!--ABB Automation Composer-->
+			<TargetFilename name="ICS" condition="end with">.grf</TargetFilename> <!--GE iFix graphics-->
+			<TargetFilename name="ICS" condition="end with">.scf</TargetFilename> <!--Citect project-->
 			<TargetFilename name="DefaultUserModified" condition="begin with">C:\Users\Default</TargetFilename> <!--Windows: Changes to default user profile-->
 			<TargetFilename condition="begin with">C:\Windows\system32\Drivers</TargetFilename> <!--Microsoft: Drivers dropped here-->
 			<TargetFilename condition="begin with">C:\Windows\SysWOW64\Drivers</TargetFilename> <!--Microsoft: Drivers dropped here-->
@@ -447,7 +622,7 @@
 		</FileCreate>
 	</RuleGroup>
 
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileCreate-Exclude" groupRelation="or">
 		<FileCreate onmatch="exclude">
 			<!--SECTION: Microsoft-->
 			<Image condition="is">C:\Program Files (x86)\EMET 5.5\EMET_Service.exe</Image> <!--Microsoft:EMET: Writes to C:\Windows\AppPatch\-->
@@ -488,7 +663,7 @@
 								For example, most COM hijacking in CLSID's across the registry is covered by a single rule monitoring a InProcServer32 wildcard-->
 
 		<!--DATA: EventType, UtcTime, ProcessGuid, ProcessId, Image, TargetObject, Details (can't filter on), NewName (can't filter on)-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="RegistryEvent-Include" groupRelation="or">
 		<RegistryEvent onmatch="include">
 			<!--Autorun or Startups-->
 				<!--ADDITIONAL REFERENCE: [ http://www.ghacks.net/2016/06/04/windows-automatic-startup-locations/ ] -->
@@ -637,7 +812,7 @@
 		</RegistryEvent>
 	</RuleGroup>
 
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="RegistryEvent-Exclude" groupRelation="or">
 		<RegistryEvent onmatch="exclude">
 		<!--COMMENT:	Remove low-information noise. Often these hide a procress recreating an empty key and do not hide the values created subsequently.-->
 		<!--NOTE:	A lot of noise can be removed by excluding CreateKey events, which are largely innocuous-->
@@ -719,6 +894,7 @@
 		<!--NOTE: Other filesystem minifilters can make it appear to Sysmon that some files are being written twice. This is not a Sysmon issue, per Mark Russinovich.-->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, Image, TargetFilename, CreationUtcTime, Hash-->
+	<RuleGroup name="FileCreateStreamHash-Include" groupRelation="or">
 		<FileCreateStreamHash onmatch="include">
 			<TargetFilename condition="contains">Downloads</TargetFilename> <!--Downloaded files. Does not include "Run" files in IE-->
 			<TargetFilename condition="contains">Temp\7z</TargetFilename> <!--7zip extractions-->
@@ -740,8 +916,9 @@
 			<TargetFilename condition="end with">.wsc</TargetFilename> <!--Scripting | Credit @bartblaze -->
 			<TargetFilename condition="end with">.wsf</TargetFilename> <!--Scripting | Credit @bartblaze -->
 		</FileCreateStreamHash>
+	</RuleGroup>
 
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileCreateStreamHash-Exclude" groupRelation="or">
 		<FileCreateStreamHash onmatch="exclude">
 		</FileCreateStreamHash>
 	</RuleGroup>
@@ -761,21 +938,11 @@
 		<!--ADDITIONAL REFERENCE: [ https://blog.cobaltstrike.com/2015/10/07/named-pipe-pivoting/ ] -->
 
 		<!--DATA: UtcTime, ProcessGuid, ProcessId, PipeName, Image-->
-		<RuleGroup name="" groupRelation="or">
+		<!--ENABLED: Capture all pipe events for comprehensive monitoring-->
+		<RuleGroup name="PipeEvent-Include-All" groupRelation="or">
 			<PipeEvent onmatch="include">
-				<!-- Remote Command Execution Tools -->
-				<PipeName condition="contains any">paexec;remcom;csexec</PipeName>
-				<!-- Password or Credential Dumpers -->
-				<PipeName condition="contains any">\lsadump;\cachedump;\wceservicepipe</PipeName>
-				<!-- Malware -->
-				<PipeName condition="contains any">\isapi_http;\isapi_dg;\isapi_dg2;\sdlrpc;\ahexec;\winsession;\lsassw;\46a676ab7f179e511e30dd2dc41bd388;\9f81f59bc58452127884ce513865ed20;\e710f28d59aa529d6792ca6ff0ca1b34;\rpchlp_3;\NamePipe_MoreWindows;\pcheap_reuse;\gruntsvc;\583da945-62af-10e8-4902-a8f205c72b2e;\bizkaz;\svcctl;\Posh;\jaccdpqnvbrrxlaf;\csexecsvc</PipeName>
-				<PipeName condition="contains any">\atctl;\userpipe;\iehelper;\sdlrpc;\comnap</PipeName>
-				<!-- Cobalt Strike Pipe Names -->
-				<PipeName condition="contains all">MSSE-;-server</PipeName>
-				<PipeName condition="begin with">\postex_</PipeName>
-				<PipeName condition="begin with">\postex_ssh_</PipeName>
-				<PipeName condition="begin with">\status_</PipeName>
-				<PipeName condition="begin with">\msagent_</PipeName>
+				<!-- Include all pipe events -->
+				<PipeName condition="begin with">\</PipeName>
 			</PipeEvent>
 		</RuleGroup>
 
@@ -819,7 +986,7 @@
 		<!-- Rejected: .windows.net, customer content -->
 		<!-- Rejected: *github.com, customer content, including open-source malware components -->
 
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="DnsQuery-Exclude" groupRelation="or">
 		<DnsQuery onmatch="exclude">
 			<!--Network noise-->
 			<QueryName condition="end with">.arpa.</QueryName> <!--Design decision to not log reverse DNS lookups. You will need to decide.-->
@@ -1061,7 +1228,7 @@
 	<!--MITRE: T1485 (Data Destruction), T1070.004 (File Deletion)-->
 	<!--DETECTION: Ransomware file deletion, anti-forensics, evidence destruction-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileDeleteDetected-Include" groupRelation="or">
 		<FileDeleteDetected onmatch="include">
 			<!--Monitor deletion of security-relevant file types only-->
 			
@@ -1075,6 +1242,14 @@
 			<TargetFilename condition="end with">.vbs</TargetFilename>
 			<TargetFilename condition="end with">.js</TargetFilename>
 			<TargetFilename condition="end with">.hta</TargetFilename>
+			<TargetFilename condition="end with">.scr</TargetFilename>
+			<TargetFilename condition="end with">.com</TargetFilename>
+			<TargetFilename condition="end with">.cpl</TargetFilename>
+			<TargetFilename condition="end with">.msi</TargetFilename>
+			<TargetFilename condition="end with">.msp</TargetFilename>
+			<TargetFilename condition="end with">.psm1</TargetFilename>
+			<TargetFilename condition="end with">.wsf</TargetFilename>
+			<TargetFilename condition="end with">.wsh</TargetFilename>
 			
 			<!--User documents (ransomware indicators)-->
 			<TargetFilename condition="end with">.doc</TargetFilename>
@@ -1088,6 +1263,115 @@
 			<!--Log files (anti-forensics, evidence destruction)-->
 			<TargetFilename condition="end with">.log</TargetFilename>
 			<TargetFilename condition="end with">.evtx</TargetFilename>
+
+			<!--Database files (anti-forensics, evidence destruction)-->
+			<TargetFilename condition="end with">.mdb</TargetFilename>
+			<TargetFilename condition="end with">.sqlite</TargetFilename>
+			<TargetFilename condition="end with">.vscdb</TargetFilename>
+			<TargetFilename condition="end with">.db</TargetFilename>
+			<TargetFilename condition="end with">.ldf</TargetFilename>
+			<TargetFilename condition="end with">.mdf</TargetFilename>
+			<TargetFilename condition="end with">.sql</TargetFilename>
+			
+			<!--Compressed archives (malware cleanup, anti-forensics)-->
+			<TargetFilename condition="end with">.zip</TargetFilename>
+			<TargetFilename condition="end with">.rar</TargetFilename>
+			<TargetFilename condition="end with">.7z</TargetFilename>
+			<TargetFilename condition="end with">.tar</TargetFilename>
+			<TargetFilename condition="end with">.gz</TargetFilename>
+			<TargetFilename condition="end with">.bz2</TargetFilename>
+			<TargetFilename condition="end with">.xz</TargetFilename>
+			<TargetFilename condition="end with">.cab</TargetFilename>
+			<TargetFilename condition="end with">.wim</TargetFilename>
+			<TargetFilename condition="end with">.dmg</TargetFilename>
+
+			<!-- Disk image files (malware cleanup, anti-forensics) -->
+			<TargetFilename condition="end with">.vhd</TargetFilename>
+			<TargetFilename condition="end with">.vhdx</TargetFilename>
+			<TargetFilename condition="end with">.vdi</TargetFilename>
+			<TargetFilename condition="end with">.vmdk</TargetFilename>
+			<TargetFilename condition="end with">.img</TargetFilename>
+			<TargetFilename condition="end with">.iso</TargetFilename>
+
+			<!-- VM volumes -->
+			<TargetFilename condition="end with">.vsv</TargetFilename>
+			<TargetFilename condition="end with">.avhd</TargetFilename>
+			<TargetFilename condition="end with">.avhdx</TargetFilename>
+			<!-- Virtual machine snapshots -->
+			<TargetFilename condition="end with">.vmem</TargetFilename>
+			<TargetFilename condition="end with">.vmss</TargetFilename>
+			<TargetFilename condition="end with">.vmsn</TargetFilename>
+			<!-- Backup files -->
+			<TargetFilename condition="end with">.bak</TargetFilename>
+			<TargetFilename condition="end with">.bkf</TargetFilename>
+			<TargetFilename condition="end with">.wbk</TargetFilename>
+			<TargetFilename condition="end with">.tib</TargetFilename>
+			<TargetFilename condition="end with">.gho</TargetFilename>
+			<TargetFilename condition="end with">.qbb</TargetFilename>
+			<TargetFilename condition="end with">.qbm</TargetFilename>
+			<TargetFilename condition="end with">.v2i</TargetFilename>
+			<TargetFilename condition="end with">.bkup</TargetFilename>
+			<TargetFilename condition="end with">.backup</TargetFilename>
+			<TargetFilename condition="end with">.zipx</TargetFilename>
+
+			<!-- ICS/SCADA/PLC Project and Configuration Files -->
+			<!-- Siemens file types -->
+			<TargetFilename condition="end with">.st</TargetFilename>
+			<TargetFilename condition="end with">.s7p</TargetFilename>
+			<TargetFilename condition="end with">.ap15</TargetFilename>
+			<TargetFilename condition="end with">.ap16</TargetFilename>
+			<TargetFilename condition="end with">.s5d</TargetFilename>
+			<TargetFilename condition="end with">.awl</TargetFilename>
+			<TargetFilename condition="end with">.scl</TargetFilename>
+			<TargetFilename condition="end with">.fbd</TargetFilename>
+			<TargetFilename condition="end with">.pcs7</TargetFilename>
+			
+			<!-- Rockwell Automation / Allen-Bradley -->
+			<TargetFilename condition="end with">.acd</TargetFilename>
+			<TargetFilename condition="end with">.l5x</TargetFilename>
+			<TargetFilename condition="end with">.l5k</TargetFilename>
+			<TargetFilename condition="end with">.rss</TargetFilename>
+			<TargetFilename condition="end with">.apa</TargetFilename>
+			<TargetFilename condition="end with">.mer</TargetFilename>
+			
+			<!-- Mitsubishi -->
+			<TargetFilename condition="end with">.gxw</TargetFilename>
+			<TargetFilename condition="end with">.gpj</TargetFilename>
+			<TargetFilename condition="end with">.prx</TargetFilename>
+			
+			<!-- Omron -->
+			<TargetFilename condition="end with">.cxp</TargetFilename>
+			<TargetFilename condition="end with">.suc</TargetFilename>
+			
+			<!-- Schneider Electric -->
+			<TargetFilename condition="end with">.stu</TargetFilename>
+			<TargetFilename condition="end with">.xef</TargetFilename>
+			<TargetFilename condition="end with">.zef</TargetFilename>
+			<TargetFilename condition="end with">.xsy</TargetFilename>
+			<TargetFilename condition="end with">.ctj</TargetFilename>
+			
+			<!-- Wonderware / AVEVA -->
+			<TargetFilename condition="end with">.aaf</TargetFilename>
+			<TargetFilename condition="end with">.wwx</TargetFilename>
+			<TargetFilename condition="end with">.aapkg</TargetFilename>
+			
+			<!-- ABB -->
+			<TargetFilename condition="end with">.ac800m</TargetFilename>
+			<TargetFilename condition="end with">.acf</TargetFilename>
+			
+			<!-- GE Digital / Emerson -->
+			<TargetFilename condition="end with">.cimplicity</TargetFilename>
+			<TargetFilename condition="end with">.grf</TargetFilename>
+			<TargetFilename condition="end with">.ds</TargetFilename>
+			
+
+		</FileDeleteDetected>
+	</RuleGroup>
+	
+	<RuleGroup name="FileDeleteDetected-Exclude" groupRelation="or">
+		<FileDeleteDetected onmatch="exclude">
+			<!--Exclude Windows component store - generates high volume of legitimate deletions during updates-->
+			<TargetFilename condition="begin with">C:\Windows\winsxs\</TargetFilename>
 		</FileDeleteDetected>
 	</RuleGroup>
 
@@ -1099,7 +1383,7 @@
 		<!--DATA: EventType, UtcTime, ProcessGuid, ProcessId, Image, Session, ClientInfo, Hashes, Archived -->
 
 	<!--
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="ClipboardChange-Include" groupRelation="or">
 		<ClipboardChange onmatch="include">
 			<Image condition="is">C:\Windows\System32\wscript.exe</Image>
 			<Image condition="is">C:\Windows\SysWOW64\wscript.exe</Image>
@@ -1118,7 +1402,7 @@
 	<!--MITRE: T1055 (Process Injection), T1055.012 (Process Hollowing)-->
 	<!--DETECTION: Image replacement, memory modification from external process-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="ProcessTampering-Exclude" groupRelation="or">
 		<ProcessTampering onmatch="exclude">
 			<!--Exclude known legitimate updating processes-->
 			<Image condition="begin with">C:\Program Files (x86)\Microsoft\Edge\Application\</Image>
@@ -1133,7 +1417,7 @@
 	<!--ENHANCEMENT: ITERATION 2 - Critical for detecting process injection-->
 	<!--MITRE: T1055 (Process Injection)-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="CreateRemoteThread-Exclude" groupRelation="or">
 		<CreateRemoteThread onmatch="exclude">
 			<!--Exclude known-good processes to reduce noise-->
 			<SourceImage condition="is">C:\Windows\System32\svchost.exe</SourceImage>
@@ -1157,7 +1441,7 @@
 	<!--MITRE: T1047 (WMI), T1546.003 (WMI Event Subscription)-->
 	<!--USE CASES: Fileless malware, APT29, APT32, Turla persistence-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="WmiEvent-Exclude" groupRelation="or">
 		<WmiEvent onmatch="exclude">
 			<!--Log all WMI Event Filters (Event ID 19)-->
 			<!--Log all WMI Event Consumers (Event ID 20)-->
@@ -1170,24 +1454,12 @@
 	</RuleGroup>
 
 	<!--==============================================================================-->
-	<!--SYSMON EVENT ID 17-18 : PIPE EVENTS [PipeEvent]-->
-	<!--ENHANCEMENT: ITERATION 2 - Detect C2 and lateral movement via named pipes-->
-	<!--MITRE: T1055, T1021 (Process Injection, Remote Services)-->
-	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
-		<PipeEvent onmatch="include">
-			<!--Match all pipes-->
-			<PipeName condition="begin with">\</PipeName>
-		</PipeEvent>
-	</RuleGroup>
-
-	<!--==============================================================================-->
 	<!--SYSMON EVENT ID 6 : DRIVER LOAD [DriverLoad]-->
 	<!--ITERATION 5: Remove ALL exclusions to capture all driver loads-->
 	<!--MITRE: T1014 (Rootkit), T1543.003 (Windows Service)-->
 	<!--NOTE: This event only triggers at boot or when drivers are manually loaded via sc.exe-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="DriverLoad-Exclude-V2" groupRelation="or">
 		<DriverLoad onmatch="exclude">
 			<!--No exclusions - capture everything for testing-->
 		</DriverLoad>
@@ -1198,7 +1470,7 @@
 	<!--ITERATION 4: Detect NTFS ADS for evasion detection-->
 	<!--MITRE: T1564.004 (NTFS File Attributes)-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileCreateStreamHash-Include" groupRelation="or">
 		<FileCreateStreamHash onmatch="include">
 			<!--Log all ADS creation - usually indicates evasion attempts-->
 			<TargetFilename condition="contains">:</TargetFilename>
@@ -1212,7 +1484,7 @@
 	<!--NOTE: Complements Event ID 11 - this detects PE structure, not just extension-->
 	<!--STRATEGY: Exclude locations already monitored by Event ID 11 to avoid overlap-->
 	<!--==============================================================================-->
-	<RuleGroup name="" groupRelation="or">
+	<RuleGroup name="FileExecutableDetected-Exclude" groupRelation="or">
 		<FileExecutableDetected onmatch="exclude">
 			<!--TIGHTENED EXCLUSIONS - Only exclude verified system processes writing to verified system locations-->
 			<!--Windows Update and Installer - Only when writing to their designated folders-->
